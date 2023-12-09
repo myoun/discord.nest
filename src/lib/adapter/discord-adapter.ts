@@ -1,10 +1,9 @@
-import { CommandInteraction, Client, ClientOptions, Routes, Events, Interaction, CacheType, ApplicationCommand, User, ChatInputCommandInteraction } from 'discord.js';
+import { Client, ClientOptions, Routes, Events, ApplicationCommand, User, ChatInputCommandInteraction, Message } from 'discord.js';
 import { REST } from "@discordjs/rest";
 import { EmptyAdapter } from './empty.adapter';
-import { CommandHandlerMetadataExplorer, MetadataMap } from '../explorer/handler-explorer';
+import { CommandHandlerMetadataExplorer, MetadataMap, PrefixMap } from '../explorer/handler-explorer';
 import { RequestHandler, Type } from '@nestjs/common/interfaces';
 import { ApplicationCommandMetdata } from '../handler/discord-handler';
-import e from 'express';
 
 type ListenFnCallback = (...args: unknown[]) => void;
 
@@ -26,12 +25,19 @@ export type ApplicationCommandResponse = {
   interaction: ChatInputCommandInteraction
 }
 
+export type MessageCommandRequest = {
+  message: Message,
+  commandName: string,
+  user: User,
+}
+
 export class DiscordAdapter extends EmptyAdapter {
     private readonly discordClient: Client;
     private readonly discordRestClient: REST;
     private readonly config: DiscordBotConfig;
 
     private readonly metadataMap: MetadataMap;
+    private readonly prefixMap: PrefixMap;
     private readonly handlers: Record<string, RequestHandler>;
 
     constructor(module: Type<any>, config: DiscordBotConfig) {
@@ -42,7 +48,9 @@ export class DiscordAdapter extends EmptyAdapter {
         this.discordRestClient = new REST().setToken(config.token);
         
         const explorer = new CommandHandlerMetadataExplorer();
-        this.metadataMap = explorer.explore(module);
+        const result = explorer.explore(module);
+        this.metadataMap = result[0];
+        this.prefixMap = result[1];
         this.handlers = {};
     }
 
@@ -82,6 +90,31 @@ export class DiscordAdapter extends EmptyAdapter {
 
         const next = () => {};
         await handler(request, {}, next);
+      })
+
+      this.discordClient.on(Events.MessageCreate, async message => {
+        const handlersToRun: RequestHandler[] = [];
+
+        this.prefixMap.forEach((commands, prefix) => {
+          if (message.content.startsWith(prefix)) {
+            const command = message.content.replace(prefix, "").split(" ").at(0)
+
+            const handler = this.handlers[`m-${command}`];
+
+            if (!handler) return;
+
+            const request: MessageCommandRequest = {
+              message,
+              commandName: command,
+              user: message.author
+            };
+
+            const next = () => {};
+            handlersToRun.push(handler(request, {}, next));
+          }
+        });
+
+        await Promise.all(handlersToRun);
       })
       try {
         await Promise.all([

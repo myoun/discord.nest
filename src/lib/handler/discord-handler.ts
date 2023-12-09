@@ -1,19 +1,23 @@
-import { Get } from "@nestjs/common";
+import { Get, Type } from "@nestjs/common";
 import { SlashCommandBuilder } from '@discordjs/builders';
+import { DISCORD_USE_MESSAGE_COMMAND_METADATA, DiscordUseMessageCommandMetadata } from "./discord-controller";
 
 export const DISCORD_MESSAGE_COMMAND_METADATA = "DISCORD_MESSAGE_COMMAND_METADATA";
 export const DISCORD_APPLICATION_COMMAND_METADATA = "DISCORD_APPLICATION_COMMAND_METADATA";
+export const LAZY_FUNCTION_METADATA = Symbol("LAZY_FUNCTION_METADATA");
 
 export type CommandMetadata = MessageCommandMetadata | ApplicationCommandMetdata
 
 export type MessageCommandMetadata = {
   type: 'message',
-  command: string
+  command: string,
+  prefix: string,
+  controller: Function,
 }
 
 export type ApplicationCommandMetdata = {
   type: 'application',
-  commandBuilder: SlashCommandBuilder
+  commandBuilder: SlashCommandBuilder,
 }
 
 export const MessageCommand = (command: string): MethodDecorator => (
@@ -21,12 +25,23 @@ export const MessageCommand = (command: string): MethodDecorator => (
     propertyKey: string | symbol,
     descriptor: TypedPropertyDescriptor<any>
   ) => {
-    const metadata: MessageCommandMetadata = { type: "message", command };
-    Reflect.defineMetadata(
-      DISCORD_MESSAGE_COMMAND_METADATA,
-      metadata,
-      descriptor.value,
-    );
+    const lazy = (useMessageCommandMetadata: DiscordUseMessageCommandMetadata) => {
+      
+      const metadata: MessageCommandMetadata = { 
+        type: "message", 
+        command, 
+        prefix: useMessageCommandMetadata.prefix, 
+        controller: target
+      };
+
+      Reflect.defineMetadata(
+        DISCORD_MESSAGE_COMMAND_METADATA,
+        metadata,
+        descriptor.value,
+      );
+    }
+
+    Reflect.defineMetadata(LAZY_FUNCTION_METADATA, lazy, descriptor.value);
 
     return Get(`m-${command}`)(target, propertyKey, descriptor);
   };

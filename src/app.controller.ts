@@ -1,26 +1,21 @@
 import { AppService } from './app.service';
-import { SomeGuard } from './app.guard';
-import { Req, UseGuards } from '@nestjs/common';
-import { Sender } from './sender.decorator';
+import { Req } from '@nestjs/common';
 import { RandomNumberService } from './random-number.service';
-import { Command } from './lib/handler/discord-handler';
-import { DiscordController } from './lib/handler/discord-controller';
-import { ApplicationCommandRequest } from './lib/adapter/discord-adapter';
+import { Command, MessageCommand } from './lib/handler/discord-handler';
+import { DiscordController, UseMessageCommand } from './lib/handler/discord-controller';
+import { ApplicationCommandRequest, MessageCommandRequest } from './lib/adapter/discord-adapter';
 import { SlashCommandBuilder } from 'discord.js';
-import { request } from 'http';
 
 
 const sumCommand = new SlashCommandBuilder()
                         .setName("sum")
                         .setDescription("sum two numbers")
                         .addIntegerOption(option => option.setName("first").setDescription("first option"))
-                        .addIntegerOption(option => option.setName("seconnd").setDescription("second option"))
+                        .addIntegerOption(option => option.setName("second").setDescription("second option"))
                         
-
+@UseMessageCommand(".")
 @DiscordController()
-export class AppController {
-
-  
+export class AppController {  
 
   constructor(
     private readonly appService: AppService,
@@ -42,6 +37,14 @@ export class AppController {
 
   @Command(sumCommand)
   sumCommand(@Req() request: ApplicationCommandRequest) {
+    const interaction = request.interaction;
+    interaction.reply((interaction.options.getInteger("first", true)+interaction.options.getInteger("second", true)).toString());
+  }
 
+  @MessageCommand("hi")
+  hiMessageCommand(@Req() request: MessageCommandRequest) {
+    console.log("hi")
+    const message = request.message;
+    message.channel.send("hi");
   }
 }

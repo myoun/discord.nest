@@ -15,7 +15,7 @@ async function bootstrap() {
       token: process.env.DISCORD_TOKEN,
       clientId: process.env.DISCORD_CLIENT_ID,
       guildId: process.env.DISCORD_GUILD_ID,
-      intents: [GatewayIntentBits.Guilds]
+      intents: [GatewayIntentBits.Guilds, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildMessages]
     }),
   );
 
